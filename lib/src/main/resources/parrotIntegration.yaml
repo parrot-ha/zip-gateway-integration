@@ -1,0 +1,3 @@
+id: 341e07ed-b7a1-4b78-aa2f-4942d8900400
+name: Z-Wave Integration via Z/IP Gateway
+className: com.parrotha.integration.zipgw.ZIPGWIntegration
