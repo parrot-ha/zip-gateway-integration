@@ -74,7 +74,7 @@ public class ZIPGWIntegration extends DeviceIntegration implements DeviceExclude
         try {
             zipgwHandler.start();
         } catch (UnknownHostException e) {
-            e.printStackTrace();
+            logger.warn("Exception", e);
         }
     }
 

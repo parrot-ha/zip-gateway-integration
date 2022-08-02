@@ -38,6 +38,8 @@ import com.parrotha.zwave.commands.zipgatewayv1.UnsolicitedDestinationGet;
 import com.parrotha.zwave.commands.zipgatewayv1.UnsolicitedDestinationSet;
 import com.parrotha.zwave.commands.zipndv1.ZipInvNodeSolicitation;
 import com.parrotha.zwave.commands.zipndv1.ZipNodeAdvertisement;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.Inet6Address;
@@ -49,6 +51,8 @@ import java.util.List;
  * Manages communication with the Z-Wave IP Gateway
  */
 public class ZWaveIPGateway {
+    private static final Logger logger = LoggerFactory.getLogger(ZWaveIPGateway.class);
+
     private InetAddress address;
     private String psk;
     private ZWaveIPClient zWaveIPClient;
@@ -76,7 +80,7 @@ public class ZWaveIPGateway {
                 zWaveIPClient.close();
             }
         } catch (IOException ioException) {
-            ioException.printStackTrace();
+            logger.warn("Exception", ioException);
         }
     }
 
@@ -133,7 +137,7 @@ public class ZWaveIPGateway {
             ZIPTransaction zipTransaction = new ZIPSingleResponseTransaction(unsolicitedDestinationGet.format(), (byte) 0x5F, (byte) 0x0A);
             byte[] commandResponse = getzWaveIPClient().sendZIPTransaction(zipTransaction);
         } catch (IOException ioException) {
-            ioException.printStackTrace();
+            logger.warn("Exception", ioException);
         }
     }
 
@@ -182,10 +186,8 @@ public class ZWaveIPGateway {
         try {
             getzWaveIPClient().sendMessage(nodeAdd.format());
             return true;
-        } catch (ZWaveIPException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
+        } catch (ZWaveIPException | IOException e) {
+            logger.warn("Exception", e);
         }
         return false;
     }
@@ -217,10 +219,8 @@ public class ZWaveIPGateway {
         try {
             getzWaveIPClient().sendMessage(nodeRemove.format());
             return true;
-        } catch (ZWaveIPException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
+        } catch (ZWaveIPException | IOException e) {
+            logger.warn("Exception", e);
         }
         return false;
     }
@@ -238,8 +238,9 @@ public class ZWaveIPGateway {
             List<Short> payload = ByteUtils.byteArrayToShortList(resetCommandResponse, 2);
             DefaultSetComplete defaultSetComplete = new DefaultSetComplete();
             defaultSetComplete.setPayload(payload);
-            if (defaultSetComplete.getStatus() == DefaultSetComplete.DEFAULT_SET_DONE)
+            if (defaultSetComplete.getStatus() == DefaultSetComplete.DEFAULT_SET_DONE) {
                 response = true;
+            }
         }
 
         return response;
