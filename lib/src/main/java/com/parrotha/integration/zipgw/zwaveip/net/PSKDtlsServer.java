@@ -66,5 +66,9 @@ public class PSKDtlsServer {
     }
 
     public void stop() {
+        if(dtlsConnector != null) {
+            dtlsConnector.destroy();
+        }
+        dtlsConnector = null;
     }
 }
