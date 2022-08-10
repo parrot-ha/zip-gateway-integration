@@ -18,9 +18,6 @@
  */
 package com.parrotha.integration.zipgw.zwaveip;
 
-import org.eclipse.californium.elements.AddressEndpointContext;
-import org.eclipse.californium.elements.RawData;
-import org.eclipse.californium.elements.RawDataChannel;
 import com.parrotha.integration.zipgw.ByteUtils;
 import com.parrotha.integration.zipgw.ZWaveIPException;
 import com.parrotha.integration.zipgw.zwaveip.net.PSKDtlsClient;
@@ -29,6 +26,9 @@ import com.parrotha.zwave.Command;
 import com.parrotha.zwave.ZWaveCommandEnum;
 import com.parrotha.zwave.commands.zipv4.ZipKeepAlive;
 import com.parrotha.zwave.commands.zipv4.ZipPacket;
+import org.eclipse.californium.elements.AddressEndpointContext;
+import org.eclipse.californium.elements.RawData;
+import org.eclipse.californium.elements.RawDataChannel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -164,10 +164,8 @@ public class ZWaveIPClient implements RawDataChannel {
                     } else {
                         sendMessage(zWaveIPTransaction.getRequest());
                     }
-                } catch (ZWaveIPException e) {
-                    e.printStackTrace();
-                } catch (IOException e) {
-                    e.printStackTrace();
+                } catch (ZWaveIPException | IOException e) {
+                    logger.warn("Exception", e);
                 }
 
                 // Wait for the transaction to complete
@@ -254,7 +252,7 @@ public class ZWaveIPClient implements RawDataChannel {
         try {
             sendRawMessage(new ZipKeepAlive().format());
         } catch (IOException ioException) {
-            ioException.printStackTrace();
+            logger.warn("Exception", ioException);
         }
     }
 
@@ -330,7 +328,7 @@ public class ZWaveIPClient implements RawDataChannel {
             try {
                 Thread.sleep(20);
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                logger.warn("Exception", e);
             }
 
             // Check out our message's ACK status; if our status has
@@ -497,8 +495,8 @@ public class ZWaveIPClient implements RawDataChannel {
                 }
                 return cmd;
             } catch (ClassNotFoundException | InstantiationException | InvocationTargetException |
-                    NoSuchMethodException | IllegalAccessException classNotFoundException) {
-                classNotFoundException.printStackTrace();
+                    NoSuchMethodException | IllegalAccessException e) {
+                logger.warn("Exception", e);
             }
         }
         return null;

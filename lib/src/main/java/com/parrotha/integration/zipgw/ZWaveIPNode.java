@@ -24,6 +24,8 @@ import com.parrotha.integration.zipgw.zwaveip.ZWaveIPClient;
 import com.parrotha.internal.utils.HexUtils;
 import com.parrotha.zwave.Command;
 import com.parrotha.zwave.ZWaveCommandEnum;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -34,6 +36,8 @@ import java.util.List;
  * Manages communication with a Z-Wave node connected to Z/IP Gateway
  */
 public class ZWaveIPNode implements ZWaveIPClient.ZIPTransactionListener {
+    private static final Logger logger = LoggerFactory.getLogger(ZWaveIPNode.class);
+
     private int nodeId;
     private InetAddress address;
     private String psk;
@@ -59,17 +63,15 @@ public class ZWaveIPNode implements ZWaveIPClient.ZIPTransactionListener {
     public void sendZWaveCommand(String cmd) {
         try {
             getzWaveIPClient().sendMessage(cmd);
-        } catch (ZWaveIPException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
+        } catch (ZWaveIPException | IOException e) {
+            logger.warn("Exception", e);
         }
     }
 
     @Override
     public boolean transactionEvent(byte[] zWaveIPMessage) {
         // filter out zip frames, TODO: what other messages should be filtered?
-        if(zWaveIPMessage.length > 1 && zWaveIPMessage[0] != 0x23 && zWaveIPMessage[1] != 0x02) {
+        if (zWaveIPMessage.length > 1 && zWaveIPMessage[0] != 0x23 && zWaveIPMessage[1] != 0x02) {
             zipgwHandler.sendDeviceMessage(nodeId, zWaveIPMessage);
         }
         return true;
@@ -89,20 +91,14 @@ public class ZWaveIPNode implements ZWaveIPClient.ZIPTransactionListener {
 
             try {
                 int version = zWaveCommand.getMaxVersion();
-                Class<? extends Command> commandClazz = Class.forName("com.parrotha.zwave.commands." + zWaveCommand.getPackageName() + "v" + version + "." + zWaveCommand.getClassName()).asSubclass(Command.class);
+                Class<? extends Command> commandClazz = Class.forName(
+                                "com.parrotha.zwave.commands." + zWaveCommand.getPackageName() + "v" + version + "." + zWaveCommand.getClassName())
+                        .asSubclass(Command.class);
                 Command cmd = commandClazz.getDeclaredConstructor().newInstance();
                 cmd.setPayload(payload);
                 return cmd;
-            } catch (ClassNotFoundException classNotFoundException) {
-                classNotFoundException.printStackTrace();
-            } catch (InstantiationException instantiationException) {
-                instantiationException.printStackTrace();
-            } catch (InvocationTargetException e) {
-                e.printStackTrace();
-            } catch (NoSuchMethodException e) {
-                e.printStackTrace();
-            } catch (IllegalAccessException illegalAccessException) {
-                illegalAccessException.printStackTrace();
+            } catch (ClassNotFoundException | InstantiationException | InvocationTargetException | NoSuchMethodException | IllegalAccessException e) {
+                logger.warn("Exception", e);
             }
         }
         return null;

@@ -74,7 +74,7 @@ public class ZIPGWIntegration extends DeviceIntegration implements DeviceExclude
         try {
             zipgwHandler.start();
         } catch (UnknownHostException e) {
-            e.printStackTrace();
+            logger.warn("Exception", e);
         }
     }
 
@@ -141,10 +141,12 @@ public class ZIPGWIntegration extends DeviceIntegration implements DeviceExclude
     public Map<String, Object> getPageData() {
         Map<String, Object> pageData = new HashMap<>();
 
-        Map<Integer, ZWaveIPNode> nodeList = zipgwHandler.getzWaveIPNodeList();
         List<Map> nodes = new ArrayList<>();
-        for (Integer nodeId : nodeList.keySet()) {
-            nodes.add(Map.of("id", "0x" + HexUtils.integerToHexString(nodeId, 1)));
+        if(zipgwHandler != null) {
+            Map<Integer, ZWaveIPNode> nodeList = zipgwHandler.getzWaveIPNodeList();
+            for (Integer nodeId : nodeList.keySet()) {
+                nodes.add(Map.of("id", "0x" + HexUtils.integerToHexString(nodeId, 1)));
+            }
         }
         pageData.put("nodes", nodes);
         pageData.put("excludeRunning", false);
