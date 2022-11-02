@@ -18,8 +18,6 @@
  */
 package com.parrotha.integration.zipgw.zwaveip;
 
-import com.parrotha.integration.zipgw.ZWaveIPException;
-
 public class AckTimeoutException extends ZWaveIPException {
     public AckTimeoutException() {
     }

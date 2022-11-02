@@ -16,7 +16,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.parrotha.integration.zipgw;
+package com.parrotha.integration.zipgw.zwaveip;
 
 public class ZWaveIPException extends Exception {
     public ZWaveIPException() {

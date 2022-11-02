@@ -29,6 +29,7 @@ import com.parrotha.internal.utils.HexUtils;
 import com.parrotha.ui.PreferencesBuilder;
 import com.parrotha.zwave.commands.networkmanagementinclusionv3.NodeAddStatus;
 import com.parrotha.zwave.commands.networkmanagementinclusionv3.NodeRemoveStatus;
+import com.parrotha.zwave.commands.networkmanagementproxyv1.NodeInfoCachedReport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -131,6 +132,7 @@ public class ZIPGWIntegration extends DeviceIntegration implements DeviceExclude
         List<Map<String, Object>> columnList = new ArrayList<>();
 
         columnList.add(Map.of("name", "nodeId", "title", "Node ID", "data", "id"));
+        columnList.add(Map.of("name", "status", "title", "Status", "data", "status"));
         bodyList.add(Map.of("name", "deviceTable", "title", "Devices", "type", "table", "columns", columnList, "data", "nodes"));
         sections.add(Map.of("name", "deviceList", "title", "Device List", "body", bodyList));
 
@@ -142,10 +144,19 @@ public class ZIPGWIntegration extends DeviceIntegration implements DeviceExclude
         Map<String, Object> pageData = new HashMap<>();
 
         List<Map> nodes = new ArrayList<>();
-        if(zipgwHandler != null) {
+        if (zipgwHandler != null) {
             Map<Integer, ZWaveIPNode> nodeList = zipgwHandler.getzWaveIPNodeList();
             for (Integer nodeId : nodeList.keySet()) {
-                nodes.add(Map.of("id", "0x" + HexUtils.integerToHexString(nodeId, 1)));
+                String statusStr = "Unknown";
+                if (nodeList.get(nodeId).getNodeInfoCachedReport() != null) {
+                    int status = nodeList.get(nodeId).getNodeInfoCachedReport().getStatus();
+                    if (status == NodeInfoCachedReport.STATUS_NOT_RESPONDING) {
+                        statusStr = "Not Responding";
+                    } else if (status == NodeInfoCachedReport.STATUS_OK) {
+                        statusStr = "OK";
+                    }
+                }
+                nodes.add(Map.of("id", "0x" + HexUtils.integerToHexString(nodeId, 1), "status", statusStr));
             }
         }
         pageData.put("nodes", nodes);
@@ -224,13 +235,6 @@ public class ZIPGWIntegration extends DeviceIntegration implements DeviceExclude
                 addedDevices = new ArrayList<>();
             }
             addedDevices.add(Map.of("deviceNetworkId", HexUtils.integerToHexString(nodeAddStatus.getNewNodeId(), 1)));
-
-            //TODO: process node and add to devices
-
-            // get Node Info
-            // get Manufacturer specifc report
-            // set association group 1
-
         } else if (nodeAddStatus.getStatus() == NodeAddStatus.ADD_NODE_STATUS_FAILED ||
                 nodeAddStatus.getStatus() == NodeAddStatus.ADD_NODE_STATUS_SECURITY_FAILED) {
             addMessage = "Failed to add device";

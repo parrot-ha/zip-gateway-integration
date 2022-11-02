@@ -22,6 +22,7 @@ import com.parrotha.integration.zipgw.zwaveip.ZIPSingleResponseTransaction;
 import com.parrotha.integration.zipgw.zwaveip.ZIPSingleResponseTransactionWithSeqNum;
 import com.parrotha.integration.zipgw.zwaveip.ZIPTransaction;
 import com.parrotha.integration.zipgw.zwaveip.ZWaveIPClient;
+import com.parrotha.integration.zipgw.zwaveip.ZWaveIPException;
 import com.parrotha.internal.utils.HexUtils;
 import com.parrotha.zwave.ZWaveCommandEnum;
 import com.parrotha.zwave.commands.networkmanagementbasicv2.DefaultSet;
@@ -160,6 +161,7 @@ public class ZWaveIPGateway {
 
     public NodeAddStatus startNodeAdd() {
         NodeAdd nodeAdd = new NodeAdd();
+        //TODO: add option to use this mode (s0) or the s2 mode if the user wants
         nodeAdd.setMode(NodeAdd.ADD_NODE_ANY);
         nodeAdd.setTxOptions(NodeAdd.TRANSMIT_OPTION_EXPLORE);
         nodeAdd.setSeqNo(incrementAndGetSequenceNumber());

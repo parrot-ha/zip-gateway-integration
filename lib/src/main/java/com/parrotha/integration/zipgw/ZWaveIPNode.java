@@ -21,9 +21,11 @@ package com.parrotha.integration.zipgw;
 import com.parrotha.integration.zipgw.zwaveip.ZIPSingleResponseTransaction;
 import com.parrotha.integration.zipgw.zwaveip.ZIPTransaction;
 import com.parrotha.integration.zipgw.zwaveip.ZWaveIPClient;
+import com.parrotha.integration.zipgw.zwaveip.ZWaveIPException;
 import com.parrotha.internal.utils.HexUtils;
 import com.parrotha.zwave.Command;
 import com.parrotha.zwave.ZWaveCommandEnum;
+import com.parrotha.zwave.commands.networkmanagementproxyv3.NodeInfoCachedReport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,14 +43,16 @@ public class ZWaveIPNode implements ZWaveIPClient.ZIPTransactionListener {
     private int nodeId;
     private InetAddress address;
     private String psk;
+    private NodeInfoCachedReport nodeInfoCachedReport;
     ZIPGWHandler zipgwHandler;
     private ZWaveIPClient zWaveIPClient;
 
-    public ZWaveIPNode(ZIPGWHandler zipgwHandler, Integer nodeId, InetAddress address, String psk) {
+    public ZWaveIPNode(ZIPGWHandler zipgwHandler, Integer nodeId, InetAddress address, String psk, NodeInfoCachedReport nodeInfoCachedReport) {
         this.zipgwHandler = zipgwHandler;
         this.nodeId = nodeId;
         this.address = address;
         this.psk = psk;
+        this.nodeInfoCachedReport = nodeInfoCachedReport;
     }
 
     private ZWaveIPClient getzWaveIPClient() {
@@ -66,6 +70,10 @@ public class ZWaveIPNode implements ZWaveIPClient.ZIPTransactionListener {
         } catch (ZWaveIPException | IOException e) {
             logger.warn("Exception", e);
         }
+    }
+
+    public NodeInfoCachedReport getNodeInfoCachedReport() {
+        return nodeInfoCachedReport;
     }
 
     @Override

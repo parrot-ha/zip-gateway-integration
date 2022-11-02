@@ -16,13 +16,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.parrotha.integration.zipgw.zwaveip;
+package com.parrotha.integration.zipgw.zwaveip.net;
 
-public class ResponseTimeoutException extends ZWaveIPException {
-    public ResponseTimeoutException() {
-    }
+import org.eclipse.californium.elements.RawData;
 
-    public ResponseTimeoutException(String message) {
-        super(message);
-    }
+public interface ZIPGatewayClient {
+    boolean isConnected();
+
+    void send(RawData message);
+
+    void stop();
+
+    void start();
 }

@@ -16,13 +16,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.parrotha.integration.zipgw.zwaveip;
+package com.parrotha.integration.zipgw.zwaveip.net;
 
-public class ResponseTimeoutException extends ZWaveIPException {
-    public ResponseTimeoutException() {
-    }
-
-    public ResponseTimeoutException(String message) {
-        super(message);
-    }
+public interface ZIPDataChannel {
+    public void receiveData(ZIPRawData raw);
 }
