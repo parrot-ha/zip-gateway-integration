@@ -16,13 +16,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.parrotha.integration.zipgw.zwaveip;
+package com.parrotha.integration.zipgw.zwaveip.net;
 
-public class ResponseTimeoutException extends ZWaveIPException {
-    public ResponseTimeoutException() {
+import java.net.InetAddress;
+
+public class ZIPRawData {
+    public final byte[] bytes;
+    private final InetAddress address;
+
+    public ZIPRawData(byte[] bytes, InetAddress address) {
+        this.bytes = bytes;
+        this.address = address;
     }
 
-    public ResponseTimeoutException(String message) {
-        super(message);
+    public byte[] getBytes() {
+        return bytes;
+    }
+
+    public InetAddress getAddress() {
+        return address;
     }
 }

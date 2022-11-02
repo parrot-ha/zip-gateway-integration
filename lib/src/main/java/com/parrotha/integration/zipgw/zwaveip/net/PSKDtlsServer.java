@@ -18,28 +18,30 @@
  */
 package com.parrotha.integration.zipgw.zwaveip.net;
 
+import com.parrotha.helper.HexUtils;
+import org.eclipse.californium.elements.AddressEndpointContext;
 import org.eclipse.californium.elements.RawData;
 import org.eclipse.californium.elements.RawDataChannel;
 import org.eclipse.californium.scandium.DTLSConnector;
 import org.eclipse.californium.scandium.config.DtlsConnectorConfig;
 import org.eclipse.californium.scandium.dtls.SingleNodeConnectionIdGenerator;
-import org.eclipse.californium.scandium.dtls.pskstore.AdvancedMultiPskStore;
-import com.parrotha.helper.HexUtils;
+import org.eclipse.californium.scandium.dtls.pskstore.AdvancedSinglePskStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 
-public class PSKDtlsServer {
+public class PSKDtlsServer implements ZIPGatewayListener {
     private static final Logger logger = LoggerFactory.getLogger(PSKDtlsServer.class);
 
     private DTLSConnector dtlsConnector;
 
     public PSKDtlsServer(RawDataChannel messageHandler, int port, String pskString) {
-        AdvancedMultiPskStore pskStore = new AdvancedMultiPskStore();
+        AdvancedSinglePskStore pskStore = new AdvancedSinglePskStore("Client_identity", HexUtils.hexStringToByteArray(pskString));
         // put in the PSK store the default identity/psk for tinydtls tests
-        pskStore.setKey("Client_identity", HexUtils.hexStringToByteArray(pskString));
+        //pskStore.setKey("Client_identity", HexUtils.hexStringToByteArray(pskString));
 
         DtlsConnectorConfig.Builder builder = new DtlsConnectorConfig.Builder();
         builder.setRecommendedCipherSuitesOnly(false);
@@ -47,14 +49,19 @@ public class PSKDtlsServer {
         builder.setAdvancedPskStore(pskStore);
         builder.setConnectionIdGenerator(new SingleNodeConnectionIdGenerator(6));
 
+
         dtlsConnector = new DTLSConnector(builder.build());
         dtlsConnector.setRawDataReceiver(messageHandler);
     }
 
-    public void send(RawData message) {
-        dtlsConnector.send(message);
+    @Override
+    public void send(byte[] message, InetAddress address, int port) {
+        AddressEndpointContext addressEndpoint = new AddressEndpointContext(new InetSocketAddress(address, port));
+        RawData rawData = RawData.outbound(message, addressEndpoint, null, false);
+        dtlsConnector.send(rawData);
     }
 
+    @Override
     public void start() {
         try {
             dtlsConnector.start();
@@ -65,8 +72,9 @@ public class PSKDtlsServer {
         }
     }
 
+    @Override
     public void stop() {
-        if(dtlsConnector != null) {
+        if (dtlsConnector != null) {
             dtlsConnector.destroy();
         }
         dtlsConnector = null;

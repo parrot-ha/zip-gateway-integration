@@ -18,7 +18,12 @@
  */
 package com.parrotha.integration.zipgw;
 
+import com.parrotha.integration.zipgw.zwaveip.ZWaveIPException;
+import com.parrotha.integration.zipgw.zwaveip.net.DatagramServer;
 import com.parrotha.integration.zipgw.zwaveip.net.PSKDtlsServer;
+import com.parrotha.integration.zipgw.zwaveip.net.ZIPDataChannel;
+import com.parrotha.integration.zipgw.zwaveip.net.ZIPGatewayListener;
+import com.parrotha.integration.zipgw.zwaveip.net.ZIPRawData;
 import com.parrotha.internal.utils.HexUtils;
 import com.parrotha.zwave.Command;
 import com.parrotha.zwave.ZWaveCommandEnum;
@@ -32,6 +37,7 @@ import com.parrotha.zwave.commands.networkmanagementproxyv3.NodeListReport;
 import com.parrotha.zwave.commands.versionv3.VersionGet;
 import com.parrotha.zwave.commands.versionv3.VersionReport;
 import com.parrotha.zwave.commands.zipv4.ZipPacket;
+import groovy.json.JsonBuilder;
 import org.eclipse.californium.elements.RawData;
 import org.eclipse.californium.elements.RawDataChannel;
 import org.slf4j.Logger;
@@ -49,15 +55,16 @@ import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
 
-public class ZIPGWHandler implements RawDataChannel {
+public class ZIPGWHandler implements RawDataChannel, ZIPDataChannel {
     private final Logger logger = LoggerFactory.getLogger(ZIPGWHandler.class);
 
     private String zipgwAddress;
     private String psk;
     private ZWaveIPGateway zWaveIPGateway;
     private ZIPGWIntegration zipgwIntegration;
-    private PSKDtlsServer zipGWListener;
+    private ZIPGatewayListener zipGWListener;
     private boolean useDtls;
+    private Short controllerId;
 
     private Map<Integer, ZWaveIPNode> zWaveIPNodeList = new HashMap<>();
     private Map<String, Integer> zIPAddressToNodeIdMap = new HashMap<>();
@@ -65,12 +72,45 @@ public class ZIPGWHandler implements RawDataChannel {
     public ZIPGWHandler(ZIPGWIntegration zipgwIntegration, String zipgwAddress, String psk, boolean useDtls) {
         this.zipgwIntegration = zipgwIntegration;
         this.zipgwAddress = zipgwAddress;
-        this.psk = psk;
         this.useDtls = useDtls;
+        if (this.useDtls) {
+            this.psk = psk;
+        } else {
+            this.psk = null;
+        }
+
+
     }
 
     public Map<Integer, ZWaveIPNode> getzWaveIPNodeList() {
         return zWaveIPNodeList;
+    }
+
+    @Override
+    public void receiveData(ZIPRawData raw) {
+        if (logger.isInfoEnabled()) {
+            logger.info("Received request: {}", HexUtils.byteArrayToHexString(raw.getBytes()));
+        }
+
+        byte[] rawBytes = raw.getBytes();
+        if (rawBytes.length > 1) {
+            if (rawBytes[0] == 0x23 && rawBytes[1] == 0x02) {
+                // ZIP packet
+                ZipPacket zipPacket = new ZipPacket();
+                zipPacket.setPayload(ByteUtils.byteArrayToShortList(rawBytes, 2));
+                if (zipPacket.getAckRequest()) {
+                    //send ack response
+                    logger.warn("TODO: Need to send ack!");
+                }
+
+                if (zipPacket.getzWaveCmdIncluded() && zipPacket.getzWaveCommand() != null) {
+                    Integer nodeId = zIPAddressToNodeIdMap.get(raw.getAddress().getHostName());
+                    if (nodeId != null) {
+                        sendDeviceMessage(nodeId, ByteUtils.shortListToByteArray(zipPacket.getzWaveCommand()));
+                    }
+                }
+            }
+        }
     }
 
     @Override
@@ -91,7 +131,7 @@ public class ZIPGWHandler implements RawDataChannel {
                 }
 
                 if (zipPacket.getzWaveCmdIncluded() && zipPacket.getzWaveCommand() != null) {
-                    Integer nodeId = zIPAddressToNodeIdMap.get(raw.getAddress().getHostAddress());
+                    Integer nodeId = zIPAddressToNodeIdMap.get(raw.getInetSocketAddress().getHostString());
                     if (nodeId != null) {
                         sendDeviceMessage(nodeId, ByteUtils.shortListToByteArray(zipPacket.getzWaveCommand()));
                     }
@@ -102,18 +142,7 @@ public class ZIPGWHandler implements RawDataChannel {
 
     public void start() throws UnknownHostException {
         InetAddress inetAddress = Inet6Address.getByName(zipgwAddress);
-
         zWaveIPGateway = new ZWaveIPGateway(inetAddress, psk);
-
-        InetAddress localAddress = null;
-        try {
-            DatagramSocket soc = new DatagramSocket();
-            soc.connect(inetAddress, 41230);
-            localAddress = soc.getLocalAddress();
-        } catch (IOException ioException) {
-            logger.warn("Exception while connecting datagram socket", ioException);
-            localAddress = null;
-        }
 
         int listeningPort;
         if (useDtls) {
@@ -122,7 +151,21 @@ public class ZIPGWHandler implements RawDataChannel {
             listeningPort = 4123;
         }
 
-        zipGWListener = new PSKDtlsServer(this, listeningPort, psk);
+        InetAddress localAddress = null;
+        try {
+            DatagramSocket soc = new DatagramSocket();
+            soc.connect(inetAddress, listeningPort);
+            localAddress = soc.getLocalAddress();
+        } catch (IOException ioException) {
+            logger.warn("Exception while connecting datagram socket", ioException);
+            localAddress = null;
+        }
+
+        if (useDtls) {
+            zipGWListener = new PSKDtlsServer(this, listeningPort, psk);
+        } else {
+            zipGWListener = new DatagramServer(this, listeningPort);
+        }
         zipGWListener.start();
 
         // set unsolicited listener
@@ -140,6 +183,7 @@ public class ZIPGWHandler implements RawDataChannel {
         //get list of nodes
         NodeListReport nodeListReport = zWaveIPGateway.getNodeListReport();
         if (nodeListReport != null) {
+            this.controllerId = nodeListReport.getNodeListControllerId();
             buildNodeList(nodeListReport.getNodeList(), nodeListReport.getNodeListControllerId());
         }
     }
@@ -158,7 +202,10 @@ public class ZIPGWHandler implements RawDataChannel {
                             logger.warn("Unknown host when attempting to get ip address of node", e);
                         }
                         if (ipv6Address != null) {
-                            zWaveIPNodeList.put(nodeId, new ZWaveIPNode(this, nodeId, ipv6Address, psk));
+                            // get Node Info
+                            NodeInfoCachedReport nodeInfoCachedReport = zWaveIPGateway.getNodeInfoCachedReport(nodeId);
+
+                            zWaveIPNodeList.put(nodeId, new ZWaveIPNode(this, nodeId, ipv6Address, psk, nodeInfoCachedReport));
                             zIPAddressToNodeIdMap.put(ipv6Address.getHostAddress(), nodeId);
                         }
                     }
@@ -222,14 +269,16 @@ public class ZIPGWHandler implements RawDataChannel {
                     } catch (UnknownHostException e) {
                         logger.warn("Unknown host when attempting to get ip address of node", e);
                     }
-                    if (ipv6Address != null) {
-                        zWaveIPNodeList.put((int) nodeAddStatus.getNewNodeId(),
-                                new ZWaveIPNode(this, (int) nodeAddStatus.getNewNodeId(), ipv6Address, psk));
-                        zIPAddressToNodeIdMap.put(ipv6Address.getHostAddress(), (int) nodeAddStatus.getNewNodeId());
-                    }
 
                     // get Node Info
                     NodeInfoCachedReport nodeInfoCachedReport = zWaveIPGateway.getNodeInfoCachedReport(nodeAddStatus.getNewNodeId());
+
+                    if (ipv6Address != null) {
+                        zWaveIPNodeList.put((int) nodeAddStatus.getNewNodeId(),
+                                new ZWaveIPNode(this, (int) nodeAddStatus.getNewNodeId(), ipv6Address, psk, nodeInfoCachedReport));
+                        zIPAddressToNodeIdMap.put(ipv6Address.getHostAddress(), (int) nodeAddStatus.getNewNodeId());
+                    }
+
 
                     ZWaveIPNode zWaveIPNode = getZWaveIPNode(newNodeId);
                     if (zWaveIPNode != null) {
@@ -318,13 +367,14 @@ public class ZIPGWHandler implements RawDataChannel {
                             } else {
                                 deviceData.put("networkSecurityLevel", "ZWAVE_LEGACY_NON_SECURE");
                             }
+                            Map<String, String> additionalIntegrationParameters = new HashMap<>();
+                            additionalIntegrationParameters.put("zwaveInfo", new JsonBuilder(rawDescription).toString());
+                            additionalIntegrationParameters.put("zwaveHubNodeId", this.controllerId.toString());
                             zipgwIntegration.addDevice(deviceHandlerInfo[0], deviceHandlerInfo[1], HexUtils.integerToHexString(newNodeId, 1),
                                     deviceData, null);
                             return;
                         }
-
                     }
-
                 } else if (nodeAddStatus.getStatus() == NodeAddStatus.ADD_NODE_STATUS_FAILED ||
                         nodeAddStatus.getStatus() == NodeAddStatus.ADD_NODE_STATUS_SECURITY_FAILED) {
                     logger.debug("Failed to add device");

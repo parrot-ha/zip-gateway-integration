@@ -18,6 +18,7 @@
  */
 package com.parrotha.integration.zipgw.zwaveip.net;
 
+import com.parrotha.helper.HexUtils;
 import org.eclipse.californium.elements.RawData;
 import org.eclipse.californium.elements.RawDataChannel;
 import org.eclipse.californium.scandium.AlertHandler;
@@ -26,16 +27,14 @@ import org.eclipse.californium.scandium.config.DtlsConnectorConfig;
 import org.eclipse.californium.scandium.dtls.AlertMessage;
 import org.eclipse.californium.scandium.dtls.SingleNodeConnectionIdGenerator;
 import org.eclipse.californium.scandium.dtls.pskstore.AdvancedSinglePskStore;
-import com.parrotha.helper.HexUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.util.concurrent.atomic.AtomicInteger;
 
-public class PSKDtlsClient implements AlertHandler {
+public class PSKDtlsClient implements AlertHandler, ZIPGatewayClient {
     private static final Logger logger = LoggerFactory.getLogger(PSKDtlsClient.class);
 
     private final String psk;
@@ -44,7 +43,6 @@ public class PSKDtlsClient implements AlertHandler {
     private final RawDataChannel messageHandler;
 
     private DTLSConnector dtlsConnector;
-    private AtomicInteger clientMessageCounter = new AtomicInteger();
 
     public PSKDtlsClient(RawDataChannel messageHandler, InetAddress address, String psk) {
         this.address = address;
@@ -68,6 +66,7 @@ public class PSKDtlsClient implements AlertHandler {
         }
     }
 
+    @Override
     public boolean isConnected() {
         return this.connected;
     }

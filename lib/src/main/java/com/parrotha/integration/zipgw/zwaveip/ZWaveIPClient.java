@@ -19,8 +19,11 @@
 package com.parrotha.integration.zipgw.zwaveip;
 
 import com.parrotha.integration.zipgw.ByteUtils;
-import com.parrotha.integration.zipgw.ZWaveIPException;
+import com.parrotha.integration.zipgw.zwaveip.net.DatagramClient;
 import com.parrotha.integration.zipgw.zwaveip.net.PSKDtlsClient;
+import com.parrotha.integration.zipgw.zwaveip.net.ZIPDataChannel;
+import com.parrotha.integration.zipgw.zwaveip.net.ZIPGatewayClient;
+import com.parrotha.integration.zipgw.zwaveip.net.ZIPRawData;
 import com.parrotha.internal.utils.HexUtils;
 import com.parrotha.zwave.Command;
 import com.parrotha.zwave.ZWaveCommandEnum;
@@ -51,10 +54,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 
-public class ZWaveIPClient implements RawDataChannel {
+public class ZWaveIPClient implements RawDataChannel, ZIPDataChannel {
     private static final Logger logger = LoggerFactory.getLogger(ZWaveIPClient.class);
 
-    private PSKDtlsClient pskDtlsClient;
+    private ZIPGatewayClient zipGatewayClient;
 
     private boolean isConnected;
 
@@ -86,7 +89,12 @@ public class ZWaveIPClient implements RawDataChannel {
         this.addressEndpoint = new AddressEndpointContext(new InetSocketAddress(address, this.port));
         // create a variable to hold our DTLS session reference (once we send a message)
 
-        pskDtlsClient = new PSKDtlsClient(this, remoteAddress, pskPassword);
+        if (pskPassword != null) {
+            zipGatewayClient = new PSKDtlsClient(this, remoteAddress, pskPassword);
+        } else {
+            zipGatewayClient = new DatagramClient(this, remoteAddress);
+        }
+
         // set isConnected to false (so we know to connect when the first message is sent)
         this.isConnected = false;
         // randomize the initial sequenceNumber
@@ -100,8 +108,8 @@ public class ZWaveIPClient implements RawDataChannel {
     }
 
     public void close() throws IOException {
-        if (pskDtlsClient.isConnected() == true) {
-            this.pskDtlsClient.stop();
+        if (zipGatewayClient.isConnected() == true) {
+            this.zipGatewayClient.stop();
         }
     }
 
@@ -308,7 +316,7 @@ public class ZWaveIPClient implements RawDataChannel {
         PacketData packetData = new PacketData(packet, 0, packet.length);
         ackRegistration.packetData = packetData;
 
-        if (pskDtlsClient.isConnected() == false) {
+        if (zipGatewayClient.isConnected() == false) {
             // update our ack registration timeout (to remove any timespan introduced by DTLS session init)
             // set the timeout to be an extended value to allow time to negotiate the connection
             updateAckRegistrationTimeout(ackRegistration, INTERNAL_ZWAVE_RESPONSE_TIMEOUT_MS);
@@ -317,7 +325,7 @@ public class ZWaveIPClient implements RawDataChannel {
         synchronized (receiveMessageSyncObject) {
             // send our message
             RawData rawData = RawData.outbound(packet, this.addressEndpoint, null, false);
-            pskDtlsClient.send(rawData);
+            zipGatewayClient.send(rawData);
         }
 
 
@@ -373,9 +381,18 @@ public class ZWaveIPClient implements RawDataChannel {
         byte[] packet = HexUtils.hexStringToByteArray(data);
         synchronized (receiveMessageSyncObject) {
             // send our message
-            pskDtlsClient.send(RawData.outbound(packet, this.addressEndpoint, null, false));
+            zipGatewayClient.send(RawData.outbound(packet, this.addressEndpoint, null, false));
         }
 
+    }
+
+    @Override
+    public void receiveData(ZIPRawData raw) {
+        if (logger.isInfoEnabled()) {
+            logger.info("Received response: {} {}", HexUtils.byteArrayToHexString(raw.getBytes()));
+        }
+
+        processReceivedPacket(raw.getBytes());
     }
 
     @Override
@@ -420,13 +437,14 @@ public class ZWaveIPClient implements RawDataChannel {
 
                     Timer nackRetryTimer = new Timer();
                     class NackRetryTimerTask extends TimerTask {
-                        PSKDtlsClient pskDtlsClient;
+                        ZIPGatewayClient zipGatewayClient;
                         AckRegistration ackRegistration;
                         AddressEndpointContext addressEndpoint;
 
-                        NackRetryTimerTask(PSKDtlsClient pskDtlsClient, AddressEndpointContext addressEndpoint, AckRegistration ackRegistration) {
+                        NackRetryTimerTask(ZIPGatewayClient zipGatewayClient, AddressEndpointContext addressEndpoint,
+                                           AckRegistration ackRegistration) {
                             this.addressEndpoint = addressEndpoint;
-                            this.pskDtlsClient = pskDtlsClient;
+                            this.zipGatewayClient = zipGatewayClient;
                             this.ackRegistration = ackRegistration;
                         }
 
@@ -434,7 +452,7 @@ public class ZWaveIPClient implements RawDataChannel {
                             if (this.ackRegistration != null && this.ackRegistration.state == AckRegistrationState.WAITING) {
                                 // re-send our message
                                 RawData rawData = RawData.outbound(ackRegistration.packetData.msg, addressEndpoint, null, false);
-                                pskDtlsClient.send(rawData);
+                                zipGatewayClient.send(rawData);
                             }
                         }
                     }
@@ -442,7 +460,7 @@ public class ZWaveIPClient implements RawDataChannel {
                     // update our ackRegistration's timeout
                     updateAckRegistrationTimeout(ackRegistration, nackRetryTimeoutInMilliseconds);
                     // schedule the "nack queue full" retry timer
-                    nackRetryTimer.schedule(new NackRetryTimerTask(this.pskDtlsClient, this.addressEndpoint, ackRegistration),
+                    nackRetryTimer.schedule(new NackRetryTimerTask(this.zipGatewayClient, this.addressEndpoint, ackRegistration),
                             nackRetryTimeoutInMilliseconds);
                 } else if (((ZipPacket) command).getNackWaiting()) {
                     AckRegistration ackRegistration = this.messagesWaitingForAck.get(sequenceNumber);
@@ -570,7 +588,7 @@ public class ZWaveIPClient implements RawDataChannel {
     }
 
     long addTime(long baseTime, int millisecondsToAdd) {
-        return baseTime + (millisecondsToAdd * NANOSECONDS_PER_MILLISECOND);
+        return baseTime + ((long) millisecondsToAdd * NANOSECONDS_PER_MILLISECOND);
     }
 
 
@@ -583,7 +601,7 @@ public class ZWaveIPClient implements RawDataChannel {
     /*** CONSTANTS AND ENUMERATIONS ***/
 
     /* timekeeping constants */
-    private final int NANOSECONDS_PER_MILLISECOND = 1000000;
+    private final long NANOSECONDS_PER_MILLISECOND = 1000000;
 
     /* time to wait between attempts to acquire a sequence number */
     private final int INTERNAL_WAIT_MS_BETWEEN_SEQUENCE_NUMBER_ACQUISITION_ATTEMPTS = 100;
