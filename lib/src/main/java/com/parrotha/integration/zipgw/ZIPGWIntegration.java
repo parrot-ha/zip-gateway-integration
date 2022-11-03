@@ -68,8 +68,8 @@ public class ZIPGWIntegration extends DeviceIntegration implements DeviceExclude
             pskPassword = "123456789012345678901234567890AA";
         }
 
-        // make this true by default unless user specifies false
-        boolean useDtls = !"false".equals(getSettingAsString("useDtls"));
+        // make this false by default unless user specifies true
+        boolean useDtls = "true".equals(getSettingAsString("useDtls"));
 
         zipgwHandler = new ZIPGWHandler(this, address, pskPassword, useDtls);
         try {
