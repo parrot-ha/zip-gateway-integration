@@ -371,7 +371,7 @@ public class ZIPGWHandler implements RawDataChannel, ZIPDataChannel {
                             additionalIntegrationParameters.put("zwaveInfo", new JsonBuilder(rawDescription).toString());
                             additionalIntegrationParameters.put("zwaveHubNodeId", this.controllerId.toString());
                             zipgwIntegration.addDevice(deviceHandlerInfo[0], deviceHandlerInfo[1], HexUtils.integerToHexString(newNodeId, 1),
-                                    deviceData, null);
+                                    deviceData, additionalIntegrationParameters);
                             return;
                         }
                     }
