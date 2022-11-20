@@ -59,6 +59,9 @@ public class DatagramClient implements ZIPGatewayClient {
         try {
             if (isConnected()) {
                 updateTimeout();
+                if (logger.isDebugEnabled()) {
+                    logger.debug("sending: " + HexUtils.byteArrayToHexString(Arrays.copyOf(message.getBytes(), message.getSize())));
+                }
                 datagramSocket.send(datagramPacket);
             } else {
                 logger.warn("Socket not connected when attempting to send packet");
