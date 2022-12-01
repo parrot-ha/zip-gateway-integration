@@ -2,7 +2,7 @@ id: 1da4f8ee-72ff-4fce-bd67-8793a2861389
 name: Z-Wave Z/IP Gateway Extension
 minHubVersion: 0.3.7
 author: Parrot HA
-version: 0.0.3
+version: 0.0.4
 licenseFile: TBD
 releaseNotes: TBD
 description: Z/IP Gateway integration for Parrot Home Automation Hub
