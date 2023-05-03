@@ -13,7 +13,7 @@ plugins {
     id "com.github.hierynomus.license" version "0.15.0"
 }
 
-version '0.0.4'
+version '0.0.5'
 
 distributions {
     main {
@@ -45,9 +45,9 @@ repositories {
 
 dependencies {
     // the following will be provided by the parrot-hub classpath at runtime.
-    compileOnly 'com.parrotha:parrothub-core:0.3.7'
-    compileOnly 'com.parrotha:parrothub-integration-common:0.3.7'
-    compileOnly 'com.parrotha:parrothub-zwave-common:0.3.7'
+    compileOnly 'com.parrotha:parrothub-core:0.4.4'
+    compileOnly 'com.parrotha:parrothub-integration-common:0.4.4'
+    compileOnly 'com.parrotha:parrothub-zwave-common:0.4.4'
 
     implementation 'org.eclipse.californium:scandium:2.6.6'
 

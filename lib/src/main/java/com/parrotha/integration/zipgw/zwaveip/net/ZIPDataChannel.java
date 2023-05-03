@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2022 by the respective copyright holders.
+ * Copyright (c) 2021-2023 by the respective copyright holders.
  * All rights reserved.
  * <p>
  * This file is part of Parrot Home Automation Hub Z/IP Gateway Extension.

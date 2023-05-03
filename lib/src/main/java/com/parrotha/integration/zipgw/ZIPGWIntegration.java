@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2022 by the respective copyright holders.
+ * Copyright (c) 2021-2023 by the respective copyright holders.
  * All rights reserved.
  * <p>
  * This file is part of Parrot Home Automation Hub Z/IP Gateway Extension.
@@ -22,6 +22,7 @@ import com.parrotha.device.HubAction;
 import com.parrotha.device.HubResponse;
 import com.parrotha.device.Protocol;
 import com.parrotha.integration.DeviceIntegration;
+import com.parrotha.integration.device.DeviceRemovedEvent;
 import com.parrotha.integration.extension.DeviceExcludeIntegrationExtension;
 import com.parrotha.integration.extension.DeviceScanIntegrationExtension;
 import com.parrotha.integration.extension.ResetIntegrationExtension;
@@ -38,10 +39,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.ResourceBundle;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 
-public class ZIPGWIntegration extends DeviceIntegration implements DeviceExcludeIntegrationExtension, DeviceScanIntegrationExtension,
-        ResetIntegrationExtension {
+public class ZIPGWIntegration extends DeviceIntegration
+        implements DeviceExcludeIntegrationExtension, DeviceScanIntegrationExtension, ResetIntegrationExtension {
     private static final Logger logger = LoggerFactory.getLogger(ZIPGWIntegration.class);
 
     private ZIPGWHandler zipgwHandler;
@@ -113,9 +117,9 @@ public class ZIPGWIntegration extends DeviceIntegration implements DeviceExclude
     }
 
     @Override
-    public boolean removeIntegrationDevice(String deviceNetworkId) {
+    public Future<Boolean> removeIntegrationDeviceAsync(String s, boolean b) {
         //TODO: start exclusion process and trigger a request for user to exclude device
-        return true;
+        return CompletableFuture.completedFuture(true);
     }
 
     @Override
@@ -196,12 +200,12 @@ public class ZIPGWIntegration extends DeviceIntegration implements DeviceExclude
             }
             if (nodeRemoveStatus.getNodeId() != 0x00) {
                 excludedDevices.add(Map.of("deviceNetworkId", HexUtils.integerToHexString(nodeRemoveStatus.getNodeId(), 1)));
-                deleteItem(HexUtils.integerToHexString(nodeRemoveStatus.getNodeId(), 1));
+                sendEvent(new DeviceRemovedEvent(HexUtils.integerToHexString(nodeRemoveStatus.getNodeId(), 1)));
             } else {
                 excludedDevices.add(Map.of("deviceNetworkId", "Unknown"));
             }
 
-        } else if (nodeRemoveStatus.getStatus() == NodeRemoveStatus.REMOVE_NODE_STATUS_FAILED) {
+        } else if (Objects.equals(nodeRemoveStatus.getStatus(), NodeRemoveStatus.REMOVE_NODE_STATUS_FAILED)) {
             excludeMessage = "Failed to excluded device";
         }
     }
@@ -228,15 +232,15 @@ public class ZIPGWIntegration extends DeviceIntegration implements DeviceExclude
 
     public void processNodeAdd(NodeAddStatus nodeAddStatus) {
         scanRunning = false;
-        if (nodeAddStatus.getStatus() == NodeAddStatus.ADD_NODE_STATUS_DONE) {
+        if (Objects.equals(nodeAddStatus.getStatus(), NodeAddStatus.ADD_NODE_STATUS_DONE)) {
             logger.debug("New device added: " + nodeAddStatus);
             addMessage = "Successfully added device";
             if (addedDevices == null) {
                 addedDevices = new ArrayList<>();
             }
             addedDevices.add(Map.of("deviceNetworkId", HexUtils.integerToHexString(nodeAddStatus.getNewNodeId(), 1)));
-        } else if (nodeAddStatus.getStatus() == NodeAddStatus.ADD_NODE_STATUS_FAILED ||
-                nodeAddStatus.getStatus() == NodeAddStatus.ADD_NODE_STATUS_SECURITY_FAILED) {
+        } else if (Objects.equals(nodeAddStatus.getStatus(), NodeAddStatus.ADD_NODE_STATUS_FAILED) ||
+                Objects.equals(nodeAddStatus.getStatus(), NodeAddStatus.ADD_NODE_STATUS_SECURITY_FAILED)) {
             addMessage = "Failed to add device";
         }
     }
@@ -274,28 +278,10 @@ public class ZIPGWIntegration extends DeviceIntegration implements DeviceExclude
 
     @Override
     public Map<String, Object> getPreferencesLayout() {
-        return new PreferencesBuilder()
-                .withBoolInput("disabled",
-                        "Disable",
-                        "Disable Z/IP Gateway Integration",
-                        false,
-                        true)
-                .withTextInput("zipGWAddress",
-                        "Z/IP GW Address",
-                        "Z/IP Gateway Address (Leave blank for default)",
-                        false,
-                        true)
-                .withTextInput("pskPassword",
-                        "PSK Password",
-                        "PSK Password",
-                        false,
-                        true)
-                .withBoolInput("useDtls",
-                        "Use DTLS",
-                        "Use DTLS with communicating with Z/IP Gateway",
-                        false,
-                        true)
-                .build();
+        return new PreferencesBuilder().withBoolInput("disabled", "Disable", "Disable Z/IP Gateway Integration", false, true)
+                .withTextInput("zipGWAddress", "Z/IP GW Address", "Z/IP Gateway Address (Leave blank for default)", false, true)
+                .withTextInput("pskPassword", "PSK Password", "PSK Password", false, true)
+                .withBoolInput("useDtls", "Use DTLS", "Use DTLS with communicating with Z/IP Gateway", false, true).build();
     }
 
     @Override

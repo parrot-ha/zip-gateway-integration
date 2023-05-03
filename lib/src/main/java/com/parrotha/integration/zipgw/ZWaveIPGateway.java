@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2022 by the respective copyright holders.
+ * Copyright (c) 2021-2023 by the respective copyright holders.
  * All rights reserved.
  * <p>
  * This file is part of Parrot Home Automation Hub Z/IP Gateway Extension.
@@ -47,6 +47,7 @@ import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Manages communication with the Z-Wave IP Gateway
@@ -54,8 +55,8 @@ import java.util.List;
 public class ZWaveIPGateway {
     private static final Logger logger = LoggerFactory.getLogger(ZWaveIPGateway.class);
 
-    private InetAddress address;
-    private String psk;
+    private final InetAddress address;
+    private final String psk;
     private ZWaveIPClient zWaveIPClient;
 
     private short sequenceNumber;
@@ -240,7 +241,7 @@ public class ZWaveIPGateway {
             List<Short> payload = ByteUtils.byteArrayToShortList(resetCommandResponse, 2);
             DefaultSetComplete defaultSetComplete = new DefaultSetComplete();
             defaultSetComplete.setPayload(payload);
-            if (defaultSetComplete.getStatus() == DefaultSetComplete.DEFAULT_SET_DONE) {
+            if (Objects.equals(defaultSetComplete.getStatus(), DefaultSetComplete.DEFAULT_SET_DONE)) {
                 response = true;
             }
         }
