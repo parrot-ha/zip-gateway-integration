@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2022 by the respective copyright holders.
+ * Copyright (c) 2021-2023 by the respective copyright holders.
  * All rights reserved.
  * <p>
  * This file is part of Parrot Home Automation Hub Z/IP Gateway Extension.
@@ -69,9 +69,9 @@ public class ZWaveIPClient implements RawDataChannel, ZIPDataChannel {
     private AddressEndpointContext addressEndpoint;
 
     private byte sequenceNumber;
-    private Object sequenceNumberSyncObject;
+    private final Object sequenceNumberSyncObject;
 
-    private Object receiveMessageSyncObject;
+    private final Object receiveMessageSyncObject;
 
     private HashMap<Byte, AckRegistration> messagesWaitingForAck;
     private List<ResponseRegistration> pendingCommandResponses;
@@ -108,7 +108,7 @@ public class ZWaveIPClient implements RawDataChannel, ZIPDataChannel {
     }
 
     public void close() throws IOException {
-        if (zipGatewayClient.isConnected() == true) {
+        if (zipGatewayClient.isConnected()) {
             this.zipGatewayClient.stop();
         }
     }
@@ -313,10 +313,9 @@ public class ZWaveIPClient implements RawDataChannel, ZIPDataChannel {
         byte[] packet = HexUtils.hexStringToByteArray(zipPacket.format());
 
         // save a copy of our message in the "waiting for ACK response" record in case we need to automatically resend it
-        PacketData packetData = new PacketData(packet, 0, packet.length);
-        ackRegistration.packetData = packetData;
+        ackRegistration.packetData = new PacketData(packet, 0, packet.length);
 
-        if (zipGatewayClient.isConnected() == false) {
+        if (!zipGatewayClient.isConnected()) {
             // update our ack registration timeout (to remove any timespan introduced by DTLS session init)
             // set the timeout to be an extended value to allow time to negotiate the connection
             updateAckRegistrationTimeout(ackRegistration, INTERNAL_ZWAVE_RESPONSE_TIMEOUT_MS);
@@ -389,7 +388,7 @@ public class ZWaveIPClient implements RawDataChannel, ZIPDataChannel {
     @Override
     public void receiveData(ZIPRawData raw) {
         if (logger.isInfoEnabled()) {
-            logger.info("Received response: {} {}", HexUtils.byteArrayToHexString(raw.getBytes()));
+            logger.info("Received response: {}", HexUtils.byteArrayToHexString(raw.getBytes()));
         }
 
         processReceivedPacket(raw.getBytes());
@@ -398,7 +397,7 @@ public class ZWaveIPClient implements RawDataChannel, ZIPDataChannel {
     @Override
     public void receiveData(RawData raw) {
         if (logger.isInfoEnabled()) {
-            logger.info("Received response: {} {}", HexUtils.byteArrayToHexString(raw.getBytes()));
+            logger.info("Received response: {}", HexUtils.byteArrayToHexString(raw.getBytes()));
         }
 
         processReceivedPacket(raw.getBytes());
@@ -580,11 +579,7 @@ public class ZWaveIPClient implements RawDataChannel, ZIPDataChannel {
 
     boolean checkTimeoutHasOccured(long timestamp) {
         long currentTime = System.nanoTime();
-        if (timestamp < currentTime) {
-            return true;
-        } else {
-            return false;
-        }
+        return timestamp < currentTime;
     }
 
     long addTime(long baseTime, int millisecondsToAdd) {

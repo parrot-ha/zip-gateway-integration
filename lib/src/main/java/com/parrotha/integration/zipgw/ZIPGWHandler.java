@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021-2022 by the respective copyright holders.
+ * Copyright (c) 2021-2023 by the respective copyright holders.
  * All rights reserved.
  * <p>
  * This file is part of Parrot Home Automation Hub Z/IP Gateway Extension.
@@ -18,6 +18,8 @@
  */
 package com.parrotha.integration.zipgw;
 
+import com.parrotha.integration.device.DeviceAddedEvent;
+import com.parrotha.integration.device.DeviceMessageEvent;
 import com.parrotha.integration.zipgw.zwaveip.ZWaveIPException;
 import com.parrotha.integration.zipgw.zwaveip.net.DatagramServer;
 import com.parrotha.integration.zipgw.zwaveip.net.PSKDtlsServer;
@@ -52,18 +54,19 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Timer;
 import java.util.TimerTask;
 
 public class ZIPGWHandler implements RawDataChannel, ZIPDataChannel {
     private final Logger logger = LoggerFactory.getLogger(ZIPGWHandler.class);
 
-    private String zipgwAddress;
-    private String psk;
+    private final String zipgwAddress;
+    private final String psk;
     private ZWaveIPGateway zWaveIPGateway;
-    private ZIPGWIntegration zipgwIntegration;
+    private final ZIPGWIntegration zipgwIntegration;
     private ZIPGatewayListener zipGWListener;
-    private boolean useDtls;
+    private final boolean useDtls;
     private Short controllerId;
 
     private Map<Integer, ZWaveIPNode> zWaveIPNodeList = new HashMap<>();
@@ -78,8 +81,6 @@ public class ZIPGWHandler implements RawDataChannel, ZIPDataChannel {
         } else {
             this.psk = null;
         }
-
-
     }
 
     public Map<Integer, ZWaveIPNode> getzWaveIPNodeList() {
@@ -237,7 +238,7 @@ public class ZIPGWHandler implements RawDataChannel, ZIPDataChannel {
             logger.debug("ZWave message from " + zWaveMessage);
         }
 
-        zipgwIntegration.sendDeviceMessage(HexUtils.integerToHexString(nodeId, 1), zWaveMessage);
+        zipgwIntegration.sendEvent(new DeviceMessageEvent(HexUtils.integerToHexString(nodeId, 1), zWaveMessage));
     }
 
     public boolean reset() {
@@ -261,7 +262,7 @@ public class ZIPGWHandler implements RawDataChannel, ZIPDataChannel {
                 zipgwIntegration.processNodeAdd(nodeAddStatus);
                 timer.cancel();
 
-                if (nodeAddStatus.getStatus() == NodeAddStatus.ADD_NODE_STATUS_DONE) {
+                if (Objects.equals(nodeAddStatus.getStatus(), NodeAddStatus.ADD_NODE_STATUS_DONE)) {
                     int newNodeId = nodeAddStatus.getNewNodeId();
                     InetAddress ipv6Address = null;
                     try {
@@ -348,35 +349,29 @@ public class ZIPGWHandler implements RawDataChannel, ZIPDataChannel {
                         //TODO: handle ff: This stands for “form factor” and corresponds to the Z-Wave+ Installer Icon type (An offset of 0x8000 is added for implementation reasons).
                         //TODO: handle ui: This corresponds to the Z-Wave+ User Icon type.
 
-                        String[] deviceHandlerInfo = zipgwIntegration.getDeviceHandlerByFingerprint(rawDescription);
-
-                        if (deviceHandlerInfo != null) {
-                            logger.debug("DeviceHandlerId: " + deviceHandlerInfo[0] + " name: " + deviceHandlerInfo[1]);
-                            Map<String, Object> deviceData = new HashMap<>();
-                            // ZWAVE_S0_DOWNGRADE ?
-                            // ZWAVE_S0_FAILED ?
-                            // ZWAVE_S2_FAILED ?
-                            if ((nodeInfoCachedReport.getGrantedKeys() & 0x04) == 0x04) {
-                                deviceData.put("networkSecurityLevel", "ZWAVE_S2_ACCESS_CONTROL");
-                            } else if ((nodeInfoCachedReport.getGrantedKeys() & 0x02) == 0x02) {
-                                deviceData.put("networkSecurityLevel", "ZWAVE_S2_AUTHENTICATED");
-                            } else if ((nodeInfoCachedReport.getGrantedKeys() & 0x01) == 0x01) {
-                                deviceData.put("networkSecurityLevel", "ZWAVE_S2_UNAUTHENTICATED");
-                            } else if ((nodeInfoCachedReport.getGrantedKeys() & 0x80) == 0x80) {
-                                deviceData.put("networkSecurityLevel", "ZWAVE_S0_LEGACY");
-                            } else {
-                                deviceData.put("networkSecurityLevel", "ZWAVE_LEGACY_NON_SECURE");
-                            }
-                            Map<String, String> additionalIntegrationParameters = new HashMap<>();
-                            additionalIntegrationParameters.put("zwaveInfo", new JsonBuilder(rawDescription).toString());
-                            additionalIntegrationParameters.put("zwaveHubNodeId", this.controllerId.toString());
-                            zipgwIntegration.addDevice(deviceHandlerInfo[0], deviceHandlerInfo[1], HexUtils.integerToHexString(newNodeId, 1),
-                                    deviceData, additionalIntegrationParameters);
-                            return;
+                        Map<String, Object> deviceData = new HashMap<>();
+                        // ZWAVE_S0_DOWNGRADE ?
+                        // ZWAVE_S0_FAILED ?
+                        // ZWAVE_S2_FAILED ?
+                        if ((nodeInfoCachedReport.getGrantedKeys() & 0x04) == 0x04) {
+                            deviceData.put("networkSecurityLevel", "ZWAVE_S2_ACCESS_CONTROL");
+                        } else if ((nodeInfoCachedReport.getGrantedKeys() & 0x02) == 0x02) {
+                            deviceData.put("networkSecurityLevel", "ZWAVE_S2_AUTHENTICATED");
+                        } else if ((nodeInfoCachedReport.getGrantedKeys() & 0x01) == 0x01) {
+                            deviceData.put("networkSecurityLevel", "ZWAVE_S2_UNAUTHENTICATED");
+                        } else if ((nodeInfoCachedReport.getGrantedKeys() & 0x80) == 0x80) {
+                            deviceData.put("networkSecurityLevel", "ZWAVE_S0_LEGACY");
+                        } else {
+                            deviceData.put("networkSecurityLevel", "ZWAVE_LEGACY_NON_SECURE");
                         }
+                        Map<String, String> additionalIntegrationParameters = new HashMap<>();
+                        additionalIntegrationParameters.put("zwaveInfo", new JsonBuilder(rawDescription).toString());
+                        additionalIntegrationParameters.put("zwaveHubNodeId", this.controllerId.toString());
+                        zipgwIntegration.sendEvent(new DeviceAddedEvent(HexUtils.integerToHexString(newNodeId, 1), true, rawDescription, deviceData,
+                                additionalIntegrationParameters));
                     }
-                } else if (nodeAddStatus.getStatus() == NodeAddStatus.ADD_NODE_STATUS_FAILED ||
-                        nodeAddStatus.getStatus() == NodeAddStatus.ADD_NODE_STATUS_SECURITY_FAILED) {
+                } else if (Objects.equals(nodeAddStatus.getStatus(), NodeAddStatus.ADD_NODE_STATUS_FAILED) ||
+                        Objects.equals(nodeAddStatus.getStatus(), NodeAddStatus.ADD_NODE_STATUS_SECURITY_FAILED)) {
                     logger.debug("Failed to add device");
                 }
             }).start();
